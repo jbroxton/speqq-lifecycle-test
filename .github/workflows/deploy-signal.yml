@@ -32,6 +32,20 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            // Get PRs associated with this commit SHA
+            let prNumbers = [];
+            try {
+              const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha
+              });
+              prNumbers = prs.data.map(pr => pr.number);
+              core.info(`PRs associated with ${context.sha}: ${prNumbers.join(',') || 'none'}`);
+            } catch (e) {
+              core.warning(`Could not fetch associated PRs: ${e.message}`);
+            }
+            
             const deployment = await github.rest.repos.createDeployment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -39,10 +53,14 @@ jobs:
               environment: '${{ inputs.environment || 'production' }}',
               required_contexts: [],
               auto_merge: false,
-              description: 'Deploying via Speqq lifecycle tracking'
+              description: 'Deploying via Speqq lifecycle tracking',
+              payload: {
+                pr_numbers: prNumbers
+              }
             });
             
             console.log(`Created deployment: ${deployment.data.id}`);
+            console.log(`With PR numbers: ${prNumbers.join(',') || 'none'}`);
             core.setOutput('deployment_id', deployment.data.id);
             return deployment.data.id;
       
