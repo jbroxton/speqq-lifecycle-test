@@ -1,0 +1,49 @@
+name: Deployment Signal
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Simulate deployment
+        run: |
+          echo "Deploying commit ${{ github.sha }} to ${{ inputs.environment || 'production' }}"
+          # Add actual deployment steps here
+      
+      - name: Notify Speqq of deployment
+        if: success()
+        run: |
+          # This will call your webhook endpoint when deployed
+          # Replace SPEQQ_WEBHOOK_URL with your actual endpoint
+          if [ ! -z "${{ secrets.SPEQQ_WEBHOOK_URL }}" ]; then
+            curl -sS -X POST "${{ secrets.SPEQQ_WEBHOOK_URL }}" \
+              -H "X-GH-Bypass: ${{ secrets.SPEQQ_WEBHOOK_SECRET }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "type": "deploy",
+                "repo": "${{ github.repository }}",
+                "sha": "${{ github.sha }}",
+                "env": "${{ inputs.environment || 'production' }}",
+                "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
+              }'
+          else
+            echo "SPEQQ_WEBHOOK_URL not configured, skipping notification"
+          fi
